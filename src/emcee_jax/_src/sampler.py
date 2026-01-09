@@ -260,12 +260,43 @@ class EnsembleSampler:
         """
         num_devices = jax.device_count()
         
+        # Check if we have multiple devices
+        if num_devices == 1:
+            import warnings
+            warnings.warn(
+                "sample_parallel() called but only 1 device available. "
+                "Falling back to regular sample() method. "
+                "For true parallelization, run on a multi-GPU/TPU system.",
+                UserWarning
+            )
+            return self.sample(
+                random_key, state, num_steps, 
+                tune=tune, progress=progress, progress_desc=progress_desc
+            )
+        
+        # Get number of walkers from coordinates
+        coords = state.ensemble.coordinates
+        if isinstance(coords, dict):
+            num_walkers = list(coords.values())[0].shape[0]
+        else:
+            num_walkers = coords.shape[0]
+        
+        # Check if num_walkers is divisible by num_devices
+        if num_walkers % num_devices != 0:
+            raise ValueError(
+                f"Number of walkers ({num_walkers}) must be divisible by "
+                f"number of devices ({num_devices}). "
+                f"Current walkers per device would be {num_walkers / num_devices:.2f}. "
+                f"Try using {(num_walkers // num_devices) * num_devices} or "
+                f"{((num_walkers // num_devices) + 1) * num_devices} walkers."
+            )
+        
         # Reshape ensemble to split across devices
         # ensemble shape: (num_walkers, ...) -> (num_devices, walkers_per_device, ...)
         def reshape_for_pmap(x):
             if isinstance(x, jnp.ndarray):
                 shape = x.shape
-                if len(shape) > 0 and shape[0] % num_devices == 0:
+                if len(shape) > 0 and shape[0] == num_walkers:
                     walkers_per_device = shape[0] // num_devices
                     return x.reshape((num_devices, walkers_per_device) + shape[1:])
             return x
