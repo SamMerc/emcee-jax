@@ -17,6 +17,11 @@ from emcee_jax._src.types import Array, PyTree
 def wrap_python_log_prob_fn(
     python_log_prob_fn: Callable[..., Array]
 ) -> LogProbFn:
+    """Wrap a pure Python log probability function for use with JAX.
+    
+    Note: This uses jax.experimental.host_callback which is deprecated.
+    Future versions should migrate to jax.experimental.io_callback.
+    """
     @custom_vmap
     @wraps(python_log_prob_fn)
     def log_prob_fn(params: Array) -> Array:

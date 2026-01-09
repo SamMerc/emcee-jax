@@ -1,11 +1,13 @@
 from typing import NamedTuple, Tuple, Union
 
 import jax
-import jax.linear_util as lu
 import numpy as np
 from jax.tree_util import tree_leaves
 
 from emcee_jax._src.types import Array, PyTree
+
+# Import the WrappedLogProbFn class instead of lu.WrappedFun
+from emcee_jax._src.log_prob_fn import WrappedLogProbFn
 
 
 class Ensemble(NamedTuple):
@@ -15,11 +17,12 @@ class Ensemble(NamedTuple):
 
     @classmethod
     def init(
-        cls, log_prob_fn: lu.WrappedFun, ensemble: Union["Ensemble", PyTree]
+        cls, log_prob_fn: WrappedLogProbFn, ensemble: Union["Ensemble", PyTree]
     ) -> "Ensemble":
         if isinstance(ensemble, cls):
             return ensemble
-        fn = jax.vmap(log_prob_fn.call_wrapped)
+        # Call the wrapped function directly (no .call_wrapped needed)
+        fn = jax.vmap(log_prob_fn)
         log_probability, deterministics = fn(ensemble)
         return cls(
             coordinates=ensemble,
