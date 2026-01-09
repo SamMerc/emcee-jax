@@ -194,7 +194,7 @@ class SimpleRedBlue(RedBlue):
         q, f = self.propose_simple(
             key1, target_walkers.coordinates, compl_walkers.coordinates
         )
-        nlp, ndet = jax.vmap(log_prob_fn.call_wrapped)(q)
+        nlp, ndet = jax.vmap(log_prob_fn)(q)
         updated = target_walkers._replace(
             coordinates=q,
             deterministics=ndet,

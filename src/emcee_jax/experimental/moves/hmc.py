@@ -160,7 +160,7 @@ class HMC(RedBlue):
             uncondition = lambda x: ell @ x
             wrapped_log_prob_fn = precondition_log_prob_fn(
                 lu.wrap_init(log_prob_fn), uncondition
-            ).call_wrapped
+            )
         else:
             coords = target.coordinates
             wrapped_log_prob_fn = log_prob_fn

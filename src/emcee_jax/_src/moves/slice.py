@@ -162,7 +162,7 @@ def _find_bounds_by_doubling_while_loop(
     ) -> Tuple[Array, Array, PyTree]:
         count, found, loc = args
         next_loc = tree_map(lambda loc, dx: loc + direction * dx, loc, dx)
-        log_prob, _ = log_prob_fn.call_wrapped(next_loc)
+        log_prob, _ = log_prob_fn(next_loc)
         return count + 1, found | jnp.less(log_prob, level), next_loc
 
     cond = lambda args: jnp.logical_and(
@@ -199,7 +199,7 @@ def _sample_by_shrinking_while_loop(
         x = tree_map(
             lambda left, right: (1 - u) * left + u * right, left, right
         )
-        log_prob, deterministics = log_prob_fn.call_wrapped(x)
+        log_prob, deterministics = log_prob_fn(x)
         next_state = state._replace(
             coordinates=x,
             deterministics=deterministics,
