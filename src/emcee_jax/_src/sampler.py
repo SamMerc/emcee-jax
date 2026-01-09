@@ -93,6 +93,7 @@ def _flatten_dict(
 class EnsembleSampler:
     wrapped_log_prob_fn: WrappedLogProbFn
     move: Move
+    use_pmap: bool
 
     def __init__(
         self,
@@ -101,7 +102,18 @@ class EnsembleSampler:
         move: Optional[Move] = None,
         log_prob_args: Tuple[Any, ...] = (),
         log_prob_kwargs: Optional[Dict[str, Any]] = None,
+        use_pmap: bool = False,
     ):
+        """Initialize the Ensemble Sampler.
+        
+        Args:
+            log_prob_fn: The log probability function
+            move: The MCMC move to use (default: Stretch)
+            log_prob_args: Additional positional arguments for log_prob_fn
+            log_prob_kwargs: Additional keyword arguments for log_prob_fn
+            use_pmap: If True, use pmap for parallel execution across devices.
+                     Requires that num_walkers is divisible by num_devices.
+        """
         log_prob_kwargs = {} if log_prob_kwargs is None else log_prob_kwargs
         wrapped_log_prob_fn = wrap_log_prob_fn(
             log_prob_fn, *log_prob_args, **log_prob_kwargs
@@ -110,6 +122,7 @@ class EnsembleSampler:
 
         move = Stretch() if move is None else move
         object.__setattr__(self, "move", move)
+        object.__setattr__(self, "use_pmap", use_pmap)
 
     def init(
         self,
@@ -144,7 +157,22 @@ class EnsembleSampler:
         num_steps: int,
         *,
         tune: bool = False,
+        progress: bool = True,
+        progress_desc: str = "Sampling",
     ) -> Trace:
+        """Sample from the ensemble.
+        
+        Args:
+            random_key: JAX random key
+            state: Initial sampler state
+            num_steps: Number of MCMC steps
+            tune: Whether this is a tuning phase
+            progress: Whether to show tqdm progress bar
+            progress_desc: Description for progress bar
+            
+        Returns:
+            Trace containing samples and statistics
+        """
         def one_step(
             state: SamplerState, key: jax.Array
         ) -> Tuple[SamplerState, Tuple[SamplerState, SampleStats]]:
@@ -152,11 +180,160 @@ class EnsembleSampler:
             return state, (state, stats)
 
         keys = random.split(random_key, num_steps)
-        final, (trace, stats) = jax.lax.scan(one_step, state, keys)
+        if progress:
+            try:
+                from tqdm.auto import tqdm
+                
+                # Compile the step function first
+                compiled_step = jax.jit(one_step)
+                
+                # Run with progress bar
+                final_state = state
+                all_states = []
+                all_stats = []
+                
+                with tqdm(total=num_steps, desc=progress_desc) as pbar:
+                    for i in range(num_steps):
+                        final_state, (trace_state, stats) = compiled_step(
+                            final_state, keys[i]
+                        )
+                        all_states.append(trace_state)
+                        all_stats.append(stats)
+                        pbar.update(1)
+                        
+                        # Optional: Update progress bar with acceptance rate
+                        if "accept_prob" in stats:
+                            accept = float(device_get(stats["accept_prob"]))
+                            pbar.set_postfix({"accept": f"{accept:.3f}"})
+                
+                # Stack the results
+                trace = tree_map(lambda *xs: jnp.stack(xs), *all_states)
+                sample_stats = tree_map(lambda *xs: jnp.stack(xs), *all_stats)
+                
+            except ImportError:
+                print("tqdm not installed. Running without progress bar.")
+                print("Install with: pip install tqdm")
+                final_state, (trace, sample_stats) = jax.lax.scan(one_step, state, keys)
+        else:
+            # Run without progress bar
+            final_state, (trace, sample_stats) = jax.lax.scan(one_step, state, keys)
+        
         return Trace(
-            final_state=final,
+            final_state=final_state,
             samples=trace.ensemble,
             extras=trace.extras,
             move_state=trace.move_state,
-            sample_stats=stats,
+            sample_stats=sample_stats,
+        )
+
+    def sample_parallel(
+        self,
+        random_key: jax.Array,
+        state: SamplerState,
+        num_steps: int,
+        *,
+        tune: bool = False,
+        progress: bool = True,
+        progress_desc: str = "Sampling (parallel)",
+    ) -> Trace:
+        """Sample from the ensemble using pmap for parallelization.
+        
+        This method splits walkers across available devices for parallel execution.
+        Requires that num_walkers is divisible by the number of devices.
+        
+        Args:
+            random_key: JAX random key
+            state: Initial sampler state
+            num_steps: Number of MCMC steps
+            tune: Whether this is a tuning phase
+            progress: Whether to show tqdm progress bar
+            progress_desc: Description for progress bar
+            
+        Returns:
+            Trace containing samples and statistics
+        """
+        
+        num_devices = jax.device_count()
+        
+        # Reshape ensemble to split across devices
+        # ensemble shape: (num_walkers, ...) -> (num_devices, walkers_per_device, ...)
+        def reshape_for_pmap(x):
+            if isinstance(x, jnp.ndarray):
+                shape = x.shape
+                if len(shape) > 0 and shape[0] % num_devices == 0:
+                    walkers_per_device = shape[0] // num_devices
+                    return x.reshape((num_devices, walkers_per_device) + shape[1:])
+            return x
+        
+        # Reshape state for parallel execution
+        pmapped_state = tree_map(reshape_for_pmap, state)
+        
+        def one_step_pmapped(
+            state: SamplerState, key: jax.Array
+        ) -> Tuple[SamplerState, Tuple[SamplerState, SampleStats]]:
+            state, stats = self.step(key, state, tune=tune)
+            return state, (state, stats)
+        
+        # Create parallel version
+        parallel_step = jax.pmap(one_step_pmapped)
+        
+        # Split keys for each device
+        keys = random.split(random_key, num_steps * num_devices)
+        keys = keys.reshape(num_steps, num_devices, -1)
+        
+        if progress:
+            try:
+                from tqdm.auto import tqdm
+                
+                final_state = pmapped_state
+                all_states = []
+                all_stats = []
+                
+                with tqdm(total=num_steps, desc=progress_desc) as pbar:
+                    for i in range(num_steps):
+                        final_state, (trace_state, stats) = parallel_step(
+                            final_state, keys[i]
+                        )
+                        all_states.append(trace_state)
+                        all_stats.append(stats)
+                        pbar.update(1)
+                        
+                        # Optional: Update with acceptance rate
+                        if "accept_prob" in stats:
+                            # Average across devices
+                            accept = float(device_get(jnp.mean(stats["accept_prob"])))
+                            pbar.set_postfix({"accept": f"{accept:.3f}"})
+                
+                # Stack and reshape results back
+                trace = tree_map(lambda *xs: jnp.stack(xs), *all_states)
+                sample_stats = tree_map(lambda *xs: jnp.stack(xs), *all_stats)
+                
+            except ImportError:
+                print("tqdm not installed. Running without progress bar.")
+                final_state, (trace, sample_stats) = jax.lax.scan(
+                    parallel_step, pmapped_state, keys
+                )
+        else:
+            final_state, (trace, sample_stats) = jax.lax.scan(
+                parallel_step, pmapped_state, keys
+            )
+        
+        # Reshape back to (num_steps, num_walkers, ...)
+        def reshape_from_pmap(x):
+            if isinstance(x, jnp.ndarray) and len(x.shape) >= 3:
+                # Shape: (num_steps, num_devices, walkers_per_device, ...)
+                # -> (num_steps, num_walkers, ...)
+                return x.reshape((x.shape[0], -1) + x.shape[3:])
+            return x
+        
+        final_state = tree_map(reshape_from_pmap, final_state)
+        trace = tree_map(reshape_from_pmap, trace)
+        sample_stats = tree_map(reshape_from_pmap, sample_stats)
+        
+        return Trace(
+            final_state=final_state,
+            samples=trace.ensemble,
+            extras=trace.extras,
+            move_state=trace.move_state,
+            sample_stats=sample_stats,
         )
