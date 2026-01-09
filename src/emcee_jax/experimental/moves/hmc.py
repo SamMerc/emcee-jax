@@ -52,7 +52,7 @@ def leapfrog(
 
 def hmc(
     log_prob_and_grad_fn: WrappedLogProbFn,
-    random_key: random.KeyArray,
+    random_key: jax.Array,
     state: HMCState,
     step_size: Array,
     num_steps: Array,
@@ -75,7 +75,7 @@ def mh_accept(
     init: HMCState,
     prop: HMCState,
     *,
-    key: Optional[random.KeyArray] = None,
+    key: Optional[jax.Array] = None,
     level: Optional[Array] = None,
 ) -> Tuple[HMCState, SampleStats]:
     prop_lp = prop.log_probability - 0.5 * jnp.sum(jnp.square(prop.momenta))
@@ -104,7 +104,7 @@ class HMC(RedBlue):
     def init(
         self,
         log_prob_fn: WrappedLogProbFn,
-        key: random.KeyArray,
+        key: jax.Array,
         ensemble: FlatWalkerState,
     ) -> StepState:
         extras = {} if ensemble.extras is None else ensemble.extras
@@ -116,7 +116,7 @@ class HMC(RedBlue):
         ensemble = ensemble._replace(extras=extras)
         return StepState(move_state={"iteration": 0}, walker_state=ensemble)
 
-    def get_step_size(self, key: random.KeyArray) -> Array:
+    def get_step_size(self, key: jax.Array) -> Array:
         if self.max_step_size is None:
             return self.step_size
         return jnp.exp(
@@ -127,7 +127,7 @@ class HMC(RedBlue):
             )
         )
 
-    def get_num_steps(self, key: random.KeyArray) -> Array:
+    def get_num_steps(self, key: jax.Array) -> Array:
         if self.max_num_steps is None:
             return jnp.asarray(self.num_steps, dtype=int)
         return jnp.floor(
@@ -142,7 +142,7 @@ class HMC(RedBlue):
         self,
         log_prob_fn: WrappedLogProbFn,
         move_state: MoveState,
-        key: random.KeyArray,
+        key: jax.Array,
         target: FlatWalkerState,
         complementary: FlatWalkerState,
         *,
@@ -237,7 +237,7 @@ def precondition_log_prob_fn(
 
 
 # def persistent_ghmc(
-#     random_key: random.KeyArray,
+#     random_key: jax.Array,
 #     state: HMCState,
 #     u: Array,
 #     *,
@@ -310,7 +310,7 @@ def precondition_log_prob_fn(
 
 
 # def persistent_ghmc(
-#     random_key: random.KeyArray,
+#     random_key: jax.Array,
 #     state: HMCState,
 #     u: Array,
 #     *,
@@ -373,7 +373,7 @@ def precondition_log_prob_fn(
 #     def init(
 #         self,
 #         log_prob_fn: WrappedLogProbFn,
-#         random_key: random.KeyArray,
+#         random_key: jax.Array,
 #         ensemble: FlatWalkerState,
 #     ) -> StepState:
 #         key1, key2 = random.split(random_key)
@@ -395,7 +395,7 @@ def precondition_log_prob_fn(
 #         self,
 #         log_prob_fn: WrappedLogProbFn,
 #         move_state: MoveState,
-#         key: random.KeyArray,
+#         key: jax.Array,
 #         target: FlatWalkerState,
 #         complementary: FlatWalkerState,
 #     ) -> Tuple[MoveState, FlatWalkerState, SampleStats]:

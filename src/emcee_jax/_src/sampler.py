@@ -113,7 +113,7 @@ class EnsembleSampler:
 
     def init(
         self,
-        random_key: random.KeyArray,
+        random_key: jax.Array,
         ensemble: Union[Ensemble, Array],
     ) -> SamplerState:
         initial_ensemble = Ensemble.init(self.wrapped_log_prob_fn, ensemble)
@@ -122,7 +122,7 @@ class EnsembleSampler:
 
     def step(
         self,
-        random_key: random.KeyArray,
+        random_key: jax.Array,
         state: SamplerState,
         *,
         tune: bool = False,
@@ -139,14 +139,14 @@ class EnsembleSampler:
 
     def sample(
         self,
-        random_key: random.KeyArray,
+        random_key: jax.Array,
         state: SamplerState,
         num_steps: int,
         *,
         tune: bool = False,
     ) -> Trace:
         def one_step(
-            state: SamplerState, key: random.KeyArray
+            state: SamplerState, key: jax.Array
         ) -> Tuple[SamplerState, Tuple[SamplerState, SampleStats]]:
             state, stats = self.step(key, state, tune=tune)
             return state, (state, stats)

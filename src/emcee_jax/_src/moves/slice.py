@@ -22,7 +22,7 @@ class Slice(RedBlue):
 
     def init(
         self,
-        random_key: random.KeyArray,
+        random_key: jax.Array,
         ensemble: Ensemble,
     ) -> Tuple[MoveState, Extras]:
         del random_key, ensemble
@@ -32,7 +32,7 @@ class Slice(RedBlue):
         self,
         step_size: Array,
         count: int,
-        key: random.KeyArray,
+        key: jax.Array,
         complementary: PyTree,
     ) -> PyTree:
         del step_size, count, key, complementary
@@ -42,7 +42,7 @@ class Slice(RedBlue):
         self,
         log_prob_fn: WrappedLogProbFn,
         state: MoveState,
-        key: random.KeyArray,
+        key: jax.Array,
         target_walkers: Ensemble,
         target_extras: Extras,
         compl_walkers: Ensemble,
@@ -101,7 +101,7 @@ class DiffEvolSlice(Slice):
         self,
         step_size: Array,
         count: int,
-        key: random.KeyArray,
+        key: jax.Array,
         complementary: PyTree,
     ) -> PyTree:
         # See the ``DiffEvol`` move for an explanation of the following
@@ -118,7 +118,7 @@ def slice_sample(
     max_doubles: int,
     max_shrinks: int,
     log_prob_fn: WrappedLogProbFn,
-    random_key: random.KeyArray,
+    random_key: jax.Array,
     initial: Ensemble,
     dx: Array,
 ) -> Tuple[Ensemble, Dict[str, Any]]:
@@ -153,7 +153,7 @@ def _find_bounds_by_doubling_while_loop(
     max_doubles: int,
     log_prob_fn: WrappedLogProbFn,
     level: Array,
-    key: random.KeyArray,
+    key: jax.Array,
     x0: PyTree,
     dx: PyTree,
 ) -> Tuple[PyTree, PyTree, Array, Array, Array]:
@@ -185,14 +185,14 @@ def _sample_by_shrinking_while_loop(
     max_shrinks: int,
     log_prob_fn: WrappedLogProbFn,
     level: Array,
-    key: random.KeyArray,
+    key: jax.Array,
     initial: Ensemble,
     left: PyTree,
     right: PyTree,
 ) -> Tuple[Ensemble, Array, Array]:
     def shrinking(
-        args: Tuple[Array, Array, Array, Array, random.KeyArray, Ensemble]
-    ) -> Tuple[Array, Array, Array, Array, random.KeyArray, Ensemble]:
+        args: Tuple[Array, Array, Array, Array, jax.Array, Ensemble]
+    ) -> Tuple[Array, Array, Array, Array, jax.Array, Ensemble]:
         count, found, left, right, key, state = args
         key, next_key = random.split(key)
         u = random.uniform(key)
