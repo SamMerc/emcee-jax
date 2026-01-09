@@ -7,7 +7,7 @@ from jax import device_get, random
 from jax.tree_util import tree_flatten, tree_map
 
 from emcee_jax._src.ensemble import Ensemble
-from emcee_jax._src.log_prob_fn import WrappedLogProbFn, LogProbFn, wrap_log_prob_fn
+from emcee_jax._src.log_prob_fn import LogProbFn, wrap_log_prob_fn, WrappedLogProbFn
 from emcee_jax._src.moves.core import Extras, Move, MoveState, Stretch
 from emcee_jax._src.types import Array, SampleStats
 
@@ -180,6 +180,7 @@ class EnsembleSampler:
             return state, (state, stats)
 
         keys = random.split(random_key, num_steps)
+        
         if progress:
             try:
                 from tqdm.auto import tqdm
@@ -203,7 +204,12 @@ class EnsembleSampler:
                         
                         # Optional: Update progress bar with acceptance rate
                         if "accept_prob" in stats:
-                            accept = float(device_get(stats["accept_prob"]))
+                            accept_array = stats["accept_prob"]
+                            # Handle both scalar and array cases
+                            if accept_array.ndim == 0:
+                                accept = float(device_get(accept_array))
+                            else:
+                                accept = float(device_get(jnp.mean(accept_array)))
                             pbar.set_postfix({"accept": f"{accept:.3f}"})
                 
                 # Stack the results
@@ -252,7 +258,6 @@ class EnsembleSampler:
         Returns:
             Trace containing samples and statistics
         """
-        
         num_devices = jax.device_count()
         
         # Reshape ensemble to split across devices
@@ -300,8 +305,12 @@ class EnsembleSampler:
                         
                         # Optional: Update with acceptance rate
                         if "accept_prob" in stats:
-                            # Average across devices
-                            accept = float(device_get(jnp.mean(stats["accept_prob"])))
+                            # Average across devices and walkers
+                            accept_array = stats["accept_prob"]
+                            if accept_array.ndim == 0:
+                                accept = float(device_get(accept_array))
+                            else:
+                                accept = float(device_get(jnp.mean(accept_array)))
                             pbar.set_postfix({"accept": f"{accept:.3f}"})
                 
                 # Stack and reshape results back
