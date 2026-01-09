@@ -2,7 +2,6 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 import jax
-import jax.linear_util as lu
 import jax.numpy as jnp
 from jax import random
 from jax.tree_util import tree_map
@@ -11,6 +10,7 @@ from emcee_jax._src.ensemble import Ensemble, get_ensemble_shape
 from emcee_jax._src.moves.core import MoveState, RedBlue
 from emcee_jax._src.moves.util import apply_accept
 from emcee_jax._src.types import Array, Extras, PyTree, SampleStats
+from emcee_jax._src.log_prob_fn import WrappedLogProbFn
 
 
 class Slice(RedBlue):
@@ -40,7 +40,7 @@ class Slice(RedBlue):
 
     def propose(
         self,
-        log_prob_fn: lu.WrappedFun,
+        log_prob_fn: WrappedLogProbFn,
         state: MoveState,
         key: random.KeyArray,
         target_walkers: Ensemble,
@@ -117,7 +117,7 @@ class DiffEvolSlice(Slice):
 def slice_sample(
     max_doubles: int,
     max_shrinks: int,
-    log_prob_fn: lu.WrappedFun,
+    log_prob_fn: WrappedLogProbFn,
     random_key: random.KeyArray,
     initial: Ensemble,
     dx: Array,
@@ -151,7 +151,7 @@ def slice_sample(
 
 def _find_bounds_by_doubling_while_loop(
     max_doubles: int,
-    log_prob_fn: lu.WrappedFun,
+    log_prob_fn: WrappedLogProbFn,
     level: Array,
     key: random.KeyArray,
     x0: PyTree,
@@ -183,7 +183,7 @@ def _find_bounds_by_doubling_while_loop(
 
 def _sample_by_shrinking_while_loop(
     max_shrinks: int,
-    log_prob_fn: lu.WrappedFun,
+    log_prob_fn: WrappedLogProbFn,
     level: Array,
     key: random.KeyArray,
     initial: Ensemble,

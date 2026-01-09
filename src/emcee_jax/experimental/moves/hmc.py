@@ -13,7 +13,6 @@ from typing import (
 )
 
 import jax
-import jax.linear_util as lu
 import jax.numpy as jnp
 import jax.scipy as jsp
 from jax import random
@@ -21,6 +20,7 @@ from jax.tree_util import tree_map
 
 from emcee_jax._src.moves.core import MoveState, RedBlue, StepState
 from emcee_jax._src.types import Array, PyTree, SampleStats
+from emcee_jax._src.log_prob_fn import WrappedLogProbFn
 
 
 class HMCState(NamedTuple):
@@ -225,7 +225,6 @@ class HMC(RedBlue):
         )
 
 
-@lu.transformation
 def precondition_log_prob_fn(
     uncondition: Callable[[Array], Array], x: Array
 ) -> Generator[

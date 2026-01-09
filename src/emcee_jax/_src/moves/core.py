@@ -3,7 +3,6 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, Optional, Sequence, Tuple
 
 import jax
-import jax.linear_util as lu
 import jax.numpy as jnp
 import numpy as np
 from jax import random
@@ -13,6 +12,7 @@ from jax_dataclasses import pytree_dataclass
 from emcee_jax._src.ensemble import Ensemble, get_ensemble_shape
 from emcee_jax._src.moves.util import apply_accept
 from emcee_jax._src.types import Array, Extras, PyTree, SampleStats
+from emcee_jax._src.log_prob_fn import WrappedLogProbFn
 
 MoveState = Optional[Any]
 
@@ -39,7 +39,7 @@ class Move:
 
     def step(
         self,
-        log_prob_fn: lu.WrappedFun,
+        log_prob_fn: WrappedLogProbFn,
         random_key: random.KeyArray,
         state: MoveState,
         ensemble: Ensemble,
@@ -68,7 +68,7 @@ class Composed(Move):
 
     def step(
         self,
-        log_prob_fn: lu.WrappedFun,
+        log_prob_fn: WrappedLogProbFn,
         random_key: random.KeyArray,
         state: MoveState,
         ensemble: Ensemble,
@@ -122,7 +122,7 @@ def compose(*moves: Move, **named_moves: Move) -> Composed:
 class RedBlue(Move):
     def propose(
         self,
-        log_prob_fn: lu.WrappedFun,
+        log_prob_fn: WrappedLogProbFn,
         state: MoveState,
         key: random.KeyArray,
         target_walkers: Ensemble,
@@ -139,7 +139,7 @@ class RedBlue(Move):
 
     def step(
         self,
-        log_prob_fn: lu.WrappedFun,
+        log_prob_fn: WrappedLogProbFn,
         random_key: random.KeyArray,
         state: MoveState,
         ensemble: Ensemble,
@@ -179,7 +179,7 @@ class SimpleRedBlue(RedBlue):
 
     def propose(
         self,
-        log_prob_fn: lu.WrappedFun,
+        log_prob_fn: WrappedLogProbFn,
         state: MoveState,
         key: random.KeyArray,
         target_walkers: Ensemble,

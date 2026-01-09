@@ -2,13 +2,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, NamedTuple, Optional, Tuple, Union
 
 import jax
-import jax.linear_util as lu
 import jax.numpy as jnp
 from jax import device_get, random
 from jax.tree_util import tree_flatten, tree_map
 
 from emcee_jax._src.ensemble import Ensemble
-from emcee_jax._src.log_prob_fn import LogProbFn, wrap_log_prob_fn
+from emcee_jax._src.log_prob_fn import WrappedLogProbFn, LogProbFn, wrap_log_prob_fn
 from emcee_jax._src.moves.core import Extras, Move, MoveState, Stretch
 from emcee_jax._src.types import Array, SampleStats
 
@@ -92,7 +91,7 @@ def _flatten_dict(
 
 @dataclass(frozen=True, init=False)
 class EnsembleSampler:
-    wrapped_log_prob_fn: lu.WrappedFun
+    wrapped_log_prob_fn: WrappedLogProbFn
     move: Move
 
     def __init__(
