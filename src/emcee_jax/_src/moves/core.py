@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import random
-from jax.tree_util import tree_map
+from jax.tree import map as tree_map
 from jax_dataclasses import pytree_dataclass
 
 from emcee_jax._src.ensemble import Ensemble, get_ensemble_shape
@@ -31,7 +31,7 @@ class Move:
 
     def init(
         self,
-        random_key: random.KeyArray,
+        random_key: jax.Array,
         ensemble: Ensemble,
     ) -> Tuple[MoveState, Extras]:
         del random_key, ensemble
@@ -40,7 +40,7 @@ class Move:
     def step(
         self,
         log_prob_fn: WrappedLogProbFn,
-        random_key: random.KeyArray,
+        random_key: jax.Array,
         state: MoveState,
         ensemble: Ensemble,
         extras: Extras,
@@ -56,7 +56,7 @@ class Composed(Move):
 
     def init(
         self,
-        random_key: random.KeyArray,
+        random_key: jax.Array,
         ensemble: Ensemble,
     ) -> Tuple[MoveState, Extras]:
         keys = random.split(random_key, len(self.moves))
@@ -69,7 +69,7 @@ class Composed(Move):
     def step(
         self,
         log_prob_fn: WrappedLogProbFn,
-        random_key: random.KeyArray,
+        random_key: jax.Array,
         state: MoveState,
         ensemble: Ensemble,
         extras: Extras,
@@ -124,7 +124,7 @@ class RedBlue(Move):
         self,
         log_prob_fn: WrappedLogProbFn,
         state: MoveState,
-        key: random.KeyArray,
+        key: jax.Array,
         target_walkers: Ensemble,
         target_extras: Extras,
         compl_walkers: Ensemble,
@@ -140,7 +140,7 @@ class RedBlue(Move):
     def step(
         self,
         log_prob_fn: WrappedLogProbFn,
-        random_key: random.KeyArray,
+        random_key: jax.Array,
         state: MoveState,
         ensemble: Ensemble,
         extras: Extras,
@@ -172,7 +172,7 @@ class RedBlue(Move):
 
 class SimpleRedBlue(RedBlue):
     def propose_simple(
-        self, key: random.KeyArray, s: PyTree, c: PyTree
+        self, key: jax.Array, s: PyTree, c: PyTree
     ) -> Tuple[PyTree, Array]:
         del key, s, c
         raise NotImplementedError
@@ -181,7 +181,7 @@ class SimpleRedBlue(RedBlue):
         self,
         log_prob_fn: WrappedLogProbFn,
         state: MoveState,
-        key: random.KeyArray,
+        key: jax.Array,
         target_walkers: Ensemble,
         target_extras: Extras,
         compl_walkers: Ensemble,
@@ -216,7 +216,7 @@ class Stretch(SimpleRedBlue):
     a: Array = 2.0
 
     def propose_simple(
-        self, key: random.KeyArray, s: PyTree, c: PyTree
+        self, key: jax.Array, s: PyTree, c: PyTree
     ) -> Tuple[PyTree, Array]:
         ns, ndim = get_ensemble_shape(s)
         nc, _ = get_ensemble_shape(c)
@@ -234,7 +234,7 @@ class DiffEvol(SimpleRedBlue):
     sigma: Array = 1.0e-5
 
     def propose_simple(
-        self, key: random.KeyArray, s: PyTree, c: PyTree
+        self, key: jax.Array, s: PyTree, c: PyTree
     ) -> Tuple[Array, Array]:
         ns, ndim = get_ensemble_shape(s)
         nc, _ = get_ensemble_shape(c)
