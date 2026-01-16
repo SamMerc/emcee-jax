@@ -1,16 +1,14 @@
 from functools import wraps
-from typing import Any, Callable, List, Tuple
+from typing import Any, Callable
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 from jax._src import dtypes
-from jax.custom_batching import custom_vmap
-from jax.experimental import host_callback
+from jax.experimental import pure_callback
 from jax.tree_util import tree_flatten
 
 from emcee_jax._src.log_prob_fn import LogProbFn
-from emcee_jax._src.ravel_util import ravel_ensemble
 from emcee_jax._src.types import Array, PyTree
 
 
@@ -18,55 +16,43 @@ def wrap_python_log_prob_fn(
     python_log_prob_fn: Callable[..., Array]
 ) -> LogProbFn:
     """Wrap a pure Python log probability function for use with JAX.
+        
+        This uses jax.pure_callback (modern JAX) to call pure Python functions
+        from within JAX transformations.
+        
+        Args:
+            python_log_prob_fn: A Python function that computes log probability.
+                Can use numpy instead of jax.numpy.
+        
+        Returns:
+            A JAX-compatible log probability function.
+        """
     
-    Note: This uses jax.experimental.host_callback which is deprecated.
-    Future versions should migrate to jax.experimental.io_callback.
-    """
-    @custom_vmap
     @wraps(python_log_prob_fn)
     def log_prob_fn(params: Array) -> Array:
+        """Evaluate log prob for a single set of parameters."""
+        # Infer output dtype from input
         dtype = _tree_dtype(params)
-        return host_callback.call(
+        # Use pure_callback to call the Python function
+        return pure_callback(
             python_log_prob_fn,
+            jax.ShapeDtypeStruct((), dtype),  # Output shape and dtype
             params,
-            result_shape=jax.ShapeDtypeStruct((), dtype),
+            vectorized=False
         )
-
-    @log_prob_fn.def_vmap
-    def _(
-        axis_size: int, in_batched: List[bool], params: Array
-    ) -> Tuple[Array, bool]:
-        del axis_size, in_batched
-
-        if _arraylike(params):
-            flat_params = params
-            eval_one = python_log_prob_fn
-        else:
-            flat_params, unravel = ravel_ensemble(params)
-            eval_one = lambda x: python_log_prob_fn(unravel(x))
-
-        result_shape = jax.ShapeDtypeStruct(
-            (flat_params.shape[0],), flat_params.dtype
-        )
-        return (
-            host_callback.call(
-                lambda y: np.stack([eval_one(x) for x in y]),
-                flat_params,
-                result_shape=result_shape,
-            ),
-            True,
-        )
-
-    return log_prob_fn
+    # Return vectorized version that works with ensembles
+    return jax.vmap(log_prob_fn)
 
 
 def _tree_dtype(tree: PyTree) -> Any:
+    """Infer dtype from a PyTree."""
     leaves, _ = tree_flatten(tree)
     from_dtypes = [dtypes.dtype(l) for l in leaves]
     return dtypes.result_type(*from_dtypes)
 
 
 def _arraylike(x: Array) -> bool:
+    """Check if x is array-like."""
     return (
         isinstance(x, np.ndarray)
         or isinstance(x, jnp.ndarray)
