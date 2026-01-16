@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax._src import dtypes
-from jax.experimental import pure_callback
+from jax import pure_callback
 from jax.tree_util import tree_flatten
 
 from emcee_jax._src.log_prob_fn import LogProbFn
