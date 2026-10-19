@@ -1,3 +1,4 @@
+import inspect
 from functools import wraps
 from typing import Any, Callable
 
@@ -10,6 +11,14 @@ from jax.tree_util import tree_flatten
 
 from emcee_jax._src.log_prob_fn import LogProbFn
 from emcee_jax._src.types import Array, PyTree
+
+# jax.pure_callback replaced the `vectorized` kwarg with `vmap_method` in
+# JAX v0.6.0; support both so this works across the JAX versions that
+# different Python versions in our test matrix resolve to.
+if "vmap_method" in inspect.signature(pure_callback).parameters:
+    _VMAP_KWARGS = {"vmap_method": "sequential"}
+else:
+    _VMAP_KWARGS = {"vectorized": False}
 
 
 def wrap_python_log_prob_fn(
@@ -38,7 +47,7 @@ def wrap_python_log_prob_fn(
             python_log_prob_fn,
             jax.ShapeDtypeStruct((), dtype),  # Output shape and dtype
             params,
-            vmap_method="sequential",
+            **_VMAP_KWARGS,
         )
     return log_prob_fn
 
