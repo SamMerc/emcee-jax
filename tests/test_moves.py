@@ -10,6 +10,17 @@ from scipy import stats
 
 from emcee_jax import EnsembleSampler, moves
 
+# Each `assert pvalue > KS_ALPHA` below is a hypothesis test against a fixed
+# seed, so a correct sampler is still expected to trip a fixed-alpha cutoff
+# occasionally just from sampling variability. This module runs 24 such KS
+# tests across test_uniform's and test_normal's parametrizations (12 each),
+# so a naive per-test alpha of 0.01 gives a ~1 - 0.99**24 ≈ 21% chance that
+# some case fails on any given CI run even when the sampler is unbiased.
+# Bonferroni-correct across all 24 tests to keep the overall false-failure
+# rate at ~1%.
+_N_KS_TESTS = 24
+KS_ALPHA = 0.01 / _N_KS_TESTS
+
 
 @pytest.mark.parametrize(
     "ndim,move",
@@ -41,7 +52,7 @@ def test_uniform(ndim, move, seed=1, num_walkers=32, num_steps=2_000):
         _, pvalue = stats.kstest(
             flat_samples[::100, :, n].flatten(), "uniform"
         )
-        assert pvalue > 0.01, n
+        assert pvalue > KS_ALPHA, n
 
 
 @pytest.mark.parametrize(
@@ -73,4 +84,4 @@ def test_normal(pytree, move, seed=1, num_walkers=32, num_steps=2_000):
     assert flat_samples.shape == (num_steps, num_walkers, 2)
     for n in range(2):
         _, pvalue = stats.kstest(flat_samples[::100, :, n].flatten(), "norm")
-        assert pvalue > 0.01, n
+        assert pvalue > KS_ALPHA, n

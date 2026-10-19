@@ -33,5 +33,5 @@ def lint(session):
 
 @nox.session(python=ALL_PYTHONS)
 def doctest(session):
-    session.install(".")
+    session.install(".", "tqdm")
     session.run("python", "-m", "doctest", "README.md", *session.posargs)
