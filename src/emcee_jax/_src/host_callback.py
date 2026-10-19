@@ -38,10 +38,9 @@ def wrap_python_log_prob_fn(
             python_log_prob_fn,
             jax.ShapeDtypeStruct((), dtype),  # Output shape and dtype
             params,
-            vectorized=False
+            vmap_method="sequential",
         )
-    # Return vectorized version that works with ensembles
-    return jax.vmap(log_prob_fn)
+    return log_prob_fn
 
 
 def _tree_dtype(tree: PyTree) -> Any:
